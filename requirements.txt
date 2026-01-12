@@ -1,0 +1,21 @@
+# Core Data Processing
+pandas==2.1.4
+numpy==1.26.2
+
+# Database Drivers
+pymongo==4.6.1
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+
+# Configuration & Environment
+python-dotenv==1.0.0
+
+# Data Validation
+cerberus==1.3.5
+
+# Logging & Utilities
+colorlog==6.8.0
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
