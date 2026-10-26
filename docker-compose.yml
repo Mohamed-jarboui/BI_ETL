@@ -1,25 +1,33 @@
-version: '3.8'
-
 services:
+  mongo:
+    image: mongo:7
+    container_name: ecommerce_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
+
   postgres:
     image: postgres:15-alpine
     container_name: ecommerce_dw
     environment:
-      POSTGRES_DB: ecommerce_dw
-      POSTGRES_USER: bi_admin
-      POSTGRES_PASSWORD: bi_password_2024
+      POSTGRES_DB: ${PG_DATABASE:-ecommerce_dw}
+      POSTGRES_USER: ${PG_USER:-bi_admin}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-change_me}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    restart: unless-stopped
-    networks:
-      - bi_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-bi_admin} -d ${PG_DATABASE:-ecommerce_dw}"]
+      interval: 5s
+      retries: 10
 
 volumes:
+  mongo_data:
   postgres_data:
-
-networks:
-  bi_network:
-    driver: bridge

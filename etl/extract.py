@@ -6,7 +6,7 @@ Extracts data from MongoDB operational database
 import pandas as pd
 from pymongo import MongoClient
 from typing import Dict, List
-from .config import Config, logger
+from .config import Config, logger, mask_uri
 
 
 class MongoExtractor:
@@ -21,7 +21,7 @@ class MongoExtractor:
     def connect(self):
         """Establish connection to MongoDB"""
         try:
-            logger.info(f"Connecting to MongoDB: {self.config.MONGO_URI}")
+            logger.info(f"Connecting to MongoDB: {mask_uri(self.config.MONGO_URI)}")
             self.client = MongoClient(self.config.MONGO_URI)
             self.db = self.client[self.config.MONGO_DB]
             
@@ -138,7 +138,7 @@ class MongoExtractor:
                 logger.warning(f"Empty collection: {collection_name}")
         
         # Check critical collections have data
-        critical_collections = ['orders', 'order_items', 'products', 'users']
+        critical_collections = ['orders', 'orderitems', 'products', 'users']
         for collection_name in critical_collections:
             if collection_name in data and len(data[collection_name]) == 0:
                 logger.error(f"Critical collection {collection_name} is empty!")

@@ -4,6 +4,7 @@ Handles database connections, logging, and runtime parameters
 """
 
 import os
+import re
 import logging
 from dotenv import load_dotenv
 from pathlib import Path
@@ -25,12 +26,14 @@ class Config:
     PG_PORT = os.getenv('PG_PORT', '5432')
     PG_DATABASE = os.getenv('PG_DATABASE', 'ecommerce_dw')
     PG_USER = os.getenv('PG_USER', 'bi_admin')
-    PG_PASSWORD = os.getenv('PG_PASSWORD', 'bi_password_2024')
+    PG_PASSWORD = os.getenv('PG_PASSWORD', 'change_me')
     
-    # PostgreSQL Connection String
+    # PostgreSQL Connection String (DATABASE_URL overrides the individual settings)
     @property
     def PG_CONNECTION_STRING(self):
-        return f"postgresql://{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}:{self.PG_PORT}/{self.PG_DATABASE}"
+        return os.getenv('DATABASE_URL') or (
+            f"postgresql://{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}:{self.PG_PORT}/{self.PG_DATABASE}"
+        )
     
     # ETL Configuration
     BATCH_SIZE = int(os.getenv('BATCH_SIZE', '1000'))
@@ -50,6 +53,11 @@ class Config:
     # Business Rules
     EXCLUDED_ORDER_STATUSES = ['cancelled', 'refunded', 'failed']
     REQUIRED_PAYMENT_STATUS = 'completed'
+
+
+def mask_uri(uri: str) -> str:
+    """Hide the user and password in a connection string before logging it."""
+    return re.sub(r"//[^/@]+@", "//***:***@", uri or "")
 
 
 def setup_logging(log_file='etl_pipeline.log'):
@@ -88,8 +96,8 @@ if __name__ == "__main__":
     # Test configuration
     config = Config()
     print("Configuration Test:")
-    print(f"MongoDB URI: {config.MONGO_URI}")
+    print(f"MongoDB URI: {mask_uri(config.MONGO_URI)}")
     print(f"MongoDB Database: {config.MONGO_DB}")
-    print(f"PostgreSQL Connection: {config.PG_CONNECTION_STRING}")
+    print(f"PostgreSQL Connection: {mask_uri(config.PG_CONNECTION_STRING)}")
     print(f"Batch Size: {config.BATCH_SIZE}")
     print(f"Collections to Extract: {config.COLLECTIONS}")

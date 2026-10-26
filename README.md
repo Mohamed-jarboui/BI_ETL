@@ -1,476 +1,177 @@
-# E-commerce Business Intelligence System
+# E-commerce BI – ETL Pipeline, Star-Schema Warehouse and Sales Dashboard
 
-> **Mini-Projet Business Intelligence – MERN E-commerce**  
-> Complete ETL pipeline and analytical dashboard for e-commerce data
+[![CI](https://github.com/Mohamed-jarboui/BI_ETL/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohamed-jarboui/BI_ETL/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1)
+![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B)
 
-## 📋 Table of Contents
+A complete business intelligence pipeline for an online store: a Python ETL extracts operational data from **MongoDB**, cleans it and applies business rules, loads it into a **PostgreSQL star schema**, and a **Streamlit** dashboard turns it into sales KPIs and trends. Everything runs locally with Docker and a reproducible demo dataset.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Documentation](#documentation)
-- [Deliverables](#deliverables)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+Built as a Business Intelligence project during my 5th year of engineering studies.
 
----
+![Dashboard overview](docs/images/dashboard_overview.png)
 
-## 🎯 Overview
+## Architecture
 
-This project implements a complete Business Intelligence system for an e-commerce MERN application, transforming operational MongoDB data into actionable insights through:
-
-- **ETL Pipeline**: Python-based Extract, Transform, Load process
-- **Data Warehouse**: PostgreSQL star schema design
-- **Analytics Dashboard**: Power BI interactive visualizations
-- **MERN Integration**: Dashboard embedded in web application
-
-**Academic Context**: 5th Year Engineering Project  
-**Technologies**: Python, MongoDB, PostgreSQL, Power BI, MERN Stack
-
----
-
-## ✨ Features
-
-### ETL Pipeline
-- ✅ MongoDB data extraction (7 collections)
-- ✅ Comprehensive data cleaning and validation
-- ✅ Business metric calculation (Revenue, Profit, Margin)
-- ✅ Date dimension with temporal attributes
-- ✅ Star schema data warehouse loading
-- ✅ Data quality checks and logging
-
-### Data Warehouse
-- ✅ Star schema with 1 fact table + 4 dimensions
-- ✅ Optimized for analytical queries
-- ✅ Indexed for performance
-- ✅ Analytical views for common queries
-
-### Power BI Dashboard
-- 📊 Executive Overview (KPIs, trends)
-- 🛍️ Sales Analysis (products, categories)
-- 👥 Customer Analysis (segmentation, behavior)
-- 🗺️ Geographical Analysis (regional performance)
-
-### Integration
-- ✅ React component for dashboard embedding
-- ✅ Multiple integration options (Service, Public, PDF)
-- ✅ Responsive design
-- ✅ Authentication-ready
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐
-│   MongoDB       │  Operational Database
-│  (E-commerce)   │  - users, products, orders
-└────────┬────────┘  - order_items, payments
-         │           - regions, categories
-         │ Extract
-         ▼
-┌─────────────────┐
-│  Python ETL     │  Data Processing
-│   Pipeline      │  - Extraction
-│                 │  - Transformation
-└────────┬────────┘  - Loading
-         │
-         │ Load
-         ▼
-┌─────────────────┐
-│  PostgreSQL     │  Data Warehouse
-│  Data Warehouse │  Star Schema:
-│                 │  - fact_sales
-│                 │  - dim_date, dim_product
-└────────┬────────┘  - dim_customer, dim_region
-         │
-         │ Connect
-         ▼
-┌─────────────────┐
-│   Power BI      │  Analytics & Visualization
-│   Dashboard     │  - DAX Measures
-│                 │  - 4 Dashboard Pages
-└────────┬────────┘  - Interactive Filters
-         │
-         │ Embed
-         ▼
-┌─────────────────┐
-│  MERN App       │  Front-end Integration
-│  (React)        │  - Dashboard Component
-└─────────────────┘  - User Interface
+```mermaid
+flowchart LR
+    A[(MongoDB<br/>users, products, orders,<br/>order items, payments,<br/>regions, categories)] -->|Extract| B[Python ETL]
+    B -->|Transform<br/>clean, business rules,<br/>dimensions + facts| B
+    B -->|Load in batches| C[(PostgreSQL<br/>star schema)]
+    C -->|quality checks| B
+    C --> D[Streamlit dashboard]
+    C --> E[Analytical SQL views]
 ```
 
----
+| Step | What it does |
+|---|---|
+| **Extract** (`etl/extract.py`) | Reads the 7 MongoDB collections into DataFrames and validates that the critical ones are not empty |
+| **Transform** (`etl/transform.py`) | Builds the date, product, customer and region dimensions; joins order items with orders, customers and products; excludes cancelled, refunded and failed orders; computes revenue, cost, profit and margin; drops rows that break referential integrity |
+| **Load** (`etl/load.py`) | Truncates and reloads the warehouse (dimensions first, then the fact table in batches), verifies row counts and runs data quality checks |
+| **Serve** (`dashboard/app.py`, `sql/schema.sql`) | Streamlit dashboard plus SQL views for sales summary, top products and customer analysis |
 
-## 📦 Prerequisites
+## Data warehouse
 
-### Required Software
-- **Python**: 3.8 or higher
-- **Docker**: For PostgreSQL
-- **Power BI Desktop**: Free version
-- **Node.js**: 14+ (for MERN integration)
+```mermaid
+erDiagram
+    fact_sales }o--|| dim_date : date_id
+    fact_sales }o--|| dim_product : product_id
+    fact_sales }o--|| dim_customer : customer_id
+    fact_sales }o--|| dim_region : region_id
 
-### Optional
-- **MongoDB**: Connection to existing MERN app database
-- **Power BI Pro/Premium**: For Service integration
+    fact_sales {
+        int sale_id PK
+        string order_id
+        string order_item_id
+        int quantity
+        decimal unit_price
+        decimal revenue
+        decimal cost_amount
+        decimal profit
+        decimal margin_pct
+    }
+    dim_date {
+        int date_id PK "YYYYMMDD"
+        date date
+        int year
+        int quarter
+        int month
+        string day_name
+        bool is_weekend
+    }
+    dim_product {
+        string product_id PK
+        string product_name
+        string category_name
+        decimal price
+        decimal cost
+        string brand
+    }
+    dim_customer {
+        string customer_id PK
+        string full_name
+        string email
+        string gender
+        date registration_date
+    }
+    dim_region {
+        string region_id PK
+        string region_name
+        string country
+    }
+```
 
----
+Grain of `fact_sales`: **one row per order line**. Foreign keys and indexes are defined in [`sql/schema.sql`](sql/schema.sql), along with three analytical views (`vw_sales_summary`, `vw_top_products`, `vw_customer_analysis`).
 
-## 🚀 Installation
+## Dashboard
 
-### Step 1: Clone Repository
+KPIs (revenue, profit, margin, orders, average order value), monthly trend, revenue by category and region, and top products and customers, all filterable by period, category and region.
+
+![Full dashboard](docs/images/dashboard.png)
+
+## Results on the demo dataset
+
+`scripts/seed_mongo.py` generates a reproducible store: 420 customers, 180 products in 13 categories, 8 regions and 2,004 orders over March 2024 to December 2025, with growth, a year-end peak and about 14% cancelled or refunded orders. One full ETL run on it:
+
+| | |
+|---|---|
+| Documents extracted | 10,804 across 7 collections (6,356 order lines) |
+| Rows loaded | 5,435 in `fact_sales`, plus 655 dates, 180 products, 420 customers, 8 regions |
+| Excluded | 921 order lines from 280 cancelled or refunded orders |
+| Quality checks | 4 of 4 passed (no orphan products or dates, no negative revenue, no zero quantities) |
+| Run time | about 1.7 s end to end |
+
+The data is fake (names from Faker, amounts in TND), so the dashboard numbers describe the demo store, not a real business.
+
+## Getting started
+
+Requirements: Python 3.10+ and Docker.
 
 ```bash
-cd c:\Users\mjarb\OneDrive\Bureau\DATA_BI
-```
-
-### Step 2: Set Up Python Environment
-
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Step 3: Start PostgreSQL Data Warehouse
-
-```bash
-# Start Docker container
-docker-compose up -d
-
-# Verify PostgreSQL is running
-docker ps
-
-# Check logs
-docker logs ecommerce_dw
-```
-
-The schema will be automatically created from `sql/schema.sql`.
-
-### Step 4: Configure Environment
-
-```bash
-# Copy environment template
+git clone https://github.com/Mohamed-jarboui/BI_ETL.git
+cd BI_ETL
 cp .env.example .env
 
-# Edit .env with your MongoDB credentials
-# MONGO_URI=mongodb://your-mongodb-connection-string
-# MONGO_DB=your_database_name
+python -m venv venv
+source venv/bin/activate              # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+docker compose up -d                  # MongoDB + PostgreSQL (schema created automatically)
+python scripts/seed_mongo.py          # load the demo data into MongoDB
+python -m etl.main                    # run the ETL
+streamlit run dashboard/app.py        # open http://localhost:8501
 ```
 
-### Step 5: Verify Installation
+To use your own MongoDB instead, set `MONGO_URI` and `MONGO_DB` in `.env` and check the source with `python scripts/inspect_mongo.py`. Credentials are only read from `.env` (git-ignored) and are masked in the logs.
+
+**Run part of the pipeline**
 
 ```bash
-# Test PostgreSQL connection
-docker exec -it ecommerce_dw psql -U bi_admin -d ecommerce_dw -c "SELECT version();"
-
-# Test ETL modules (once MongoDB is ready)
-python etl/config.py
+python -m etl.main --extract-only
+python -m etl.main --skip-load
 ```
 
----
-
-## 💻 Usage
-
-### Running the ETL Pipeline
-
-#### Full Pipeline
+**Check the warehouse**
 
 ```bash
-# Run complete ETL process
-cd c:\Users\mjarb\OneDrive\Bureau\DATA_BI
-python etl/main.py
+docker exec -i ecommerce_dw psql -U bi_admin -d ecommerce_dw < sql/verify_data.sql
 ```
 
-#### Partial Execution
+## Tests
 
 ```bash
-# Extract only
-python etl/main.py --extract-only
-
-# Transform only
-python etl/main.py --transform-only
-
-# Load only
-python etl/main.py --load-only
+pytest tests -v
 ```
 
-#### Skip Phases
+- **Unit tests** (`tests/test_transform.py`) run the transformation on generated data: dimension sizes and unique keys, excluded order statuses, revenue / profit / margin formulas, foreign keys, and credential masking.
+- **End-to-end test** (`tests/test_integration.py`) seeds MongoDB, runs the full ETL and checks the warehouse. It runs in GitHub Actions against real MongoDB and PostgreSQL containers, or locally with `RUN_INTEGRATION=1` once `docker compose` is up.
 
-```bash
-# Skip extraction (use cached data)
-python etl/main.py --skip-extract
-```
-
-### Monitoring
-
-```bash
-# View logs
-cd logs
-type etl_pipeline.log
-
-# Monitor PostgreSQL
-docker exec -it ecommerce_dw psql -U bi_admin -d ecommerce_dw
-
-# Check row counts
-ecommerce_dw=# SELECT COUNT(*) FROM fact_sales;
-ecommerce_dw=# SELECT COUNT(*) FROM dim_product;
-```
-
-### Data Verification
-
-```bash
-# Run data quality checks
-docker exec -it ecommerce_dw psql -U bi_admin -d ecommerce_dw -f sql/verify_data.sql
-```
-
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
-DATA_BI/
-├── etl/                          # ETL Pipeline
-│   ├── __init__.py
-│   ├── config.py                 # Configuration & logging
-│   ├── extract.py                # MongoDB extraction
-│   ├── transform.py              # Data transformation
-│   ├── load.py                   # PostgreSQL loading
-│   └── main.py                   # Pipeline orchestrator
-│
-├── sql/                          # SQL Scripts
-│   ├── schema.sql                # Data warehouse DDL
-│   └── verify_data.sql           # Quality checks
-│
-├── docs/                         # Documentation
-│   ├── powerbi_guide.md          # Power BI tutorial
-│   ├── mern_integration.md       # Integration guide
-│   └── schema_diagram.png        # ER diagram (to generate)
-│
-├── powerbi/                      # Power BI Files
-│   └── ecommerce_bi.pbix         # Dashboard file (to create)
-│
-├── logs/                         # Log Files
-│   └── etl_pipeline.log          # ETL execution logs
-│
-├── docker-compose.yml            # PostgreSQL setup
-├── requirements.txt              # Python dependencies
-├── .env.example                  # Environment template
-├── .env                          # Your configuration (create this)
-└── README.md                     # This file
+├── etl/
+│   ├── config.py          # settings from .env, logging, credential masking
+│   ├── extract.py         # MongoDB -> DataFrames
+│   ├── transform.py       # dimensions, fact table, business rules
+│   ├── load.py            # PostgreSQL loading, verification, quality checks
+│   └── main.py            # pipeline orchestrator (CLI)
+├── sql/
+│   ├── schema.sql         # star schema, indexes, analytical views
+│   └── verify_data.sql    # data quality queries
+├── dashboard/app.py       # Streamlit dashboard
+├── scripts/
+│   ├── seed_mongo.py      # reproducible demo data generator
+│   └── inspect_mongo.py   # check source collections and fields
+├── tests/                 # unit and end-to-end tests
+├── docs/images/           # dashboard screenshots
+├── docker-compose.yml     # MongoDB + PostgreSQL
+└── .github/workflows/ci.yml
 ```
 
----
+## Next steps
 
-## 📚 Documentation
-
-### Core Documentation
-- **[Power BI Guide](docs/powerbi_guide.md)**: Step-by-step dashboard creation
-- **[MERN Integration](docs/mern_integration.md)**: Web app integration
-- **[Implementation Plan](../../.gemini/antigravity/brain/a360e7ff-2077-4303-b3a3-e2ec12787fcd/implementation_plan.md)**: Technical design
-
-### Quick References
-
-#### MongoDB Collections
-- `users` - Customer data
-- `products` - Product catalog
-- `orders` - Order headers
-- `order_items` - Order line items
-- `payments` - Payment transactions
-- `regions` - Geographic regions
-- `categories` - Product categories
-
-#### Star Schema Tables
-
-**Fact Table**:
-- `fact_sales` - Sales transactions with metrics
-
-**Dimensions**:
-- `dim_date` - Date dimension
-- `dim_product` - Product dimension
-- `dim_customer` - Customer dimension
-- `dim_region` - Geographic dimension
-
-#### Key Metrics Calculated
-- **Revenue** = `price × quantity`
-- **Profit** = `(price - cost) × quantity`
-- **Margin %** = `(profit / revenue) × 100`
-- **Average Basket** = `revenue / distinct orders`
-
----
-
-## 📦 Deliverables
-
-### Required Files
-
-- [x] **ETL Python Scripts**: `etl/*.py` (fully commented)
-- [x] **Data Warehouse Schema**: `sql/schema.sql`
-- [ ] **Power BI Dashboard**: `powerbi/ecommerce_bi.pbix` (create using guide)
-- [x] **Documentation**: `docs/*.md`
-- [x] **Integration Code**: `docs/mern_integration.md`
-- [ ] **ER Diagram**: Generate from Power BI or draw.io
-
-### For Academic Submission
-
-1. **Code Repository**: Complete project folder
-2. **Documentation**: README + technical guides
-3. **Dashboard File**: `.pbix` file
-4. **Presentation**: PowerPoint/PDF slides
-5. **Demo Video**: Screen recording of dashboard (optional)
-
----
-
-## 🔧 Troubleshooting
-
-### Docker Issues
-
-**PostgreSQL won't start**:
-```bash
-# Check if port 5432 is already in use
-netstat -ano | findstr :5432
-
-# Stop and remove existing containers
-docker-compose down -v
-docker-compose up -d
-```
-
-### ETL Issues
-
-**MongoDB connection failed**:
-- Verify connection string in `.env`
-- Check MongoDB is running
-- Test connection: `mongo "your-connection-string"`
-
-**Import errors**:
-```bash
-# Reinstall dependencies
-pip install --upgrade -r requirements.txt
-```
-
-### Power BI Issues
-
-**Cannot connect to PostgreSQL**:
-- Ensure Docker container is running
-- Use connection: `localhost:5432`
-- Database: `ecommerce_dw`
-- User: `bi_admin`
-- Password: `bi_password_2024`
-
-**Relationships not detected**:
-- Manually create in Model view
-- Verify key columns match (date_id, product_id, etc.)
-
----
-
-## 🎓 Academic Notes
-
-### Project Highlights for Presentation
-
-1. **Complete BI Pipeline**: End-to-end data flow
-2. **Star Schema Design**: Industry-standard approach
-3. **Business Metrics**: Real analytical value
-4. **Modern Tech Stack**: Python, PostgreSQL, Power BI
-5. **Production-Ready**: Logging, error handling, validation
-
-### Suggested Presentation Structure
-
-1. **Introduction** (2 min)
-   - Context: E-commerce BI needs
-   - Objectives
-
-2. **Architecture** (5 min)
-   - System diagram
-   - Technology choices
-
-3. **ETL Pipeline** (8 min)
-   - Extraction process
-   - Transformation logic
-   - Business metrics
-   - Data quality
-
-4. **Data Warehouse** (5 min)
-   - Star schema design
-   - Dimension tables
-   - Fact table
-
-5. **Dashboard** (8 min)
-   - Live demo
-   - Key insights
-   - Interactivity
-
-6. **Integration** (3 min)
-   - MERN integration
-   - Deployment
-
-7. **Conclusion** (2 min)
-   - Results
-   - Future work
-
----
-
-## 📝 Next Steps
-
-### When MongoDB is Ready
-
-1. **Configure Connection**:
-   ```bash
-   # Edit .env file
-   MONGO_URI=your_actual_connection_string
-   MONGO_DB=your_database_name
-   ```
-
-2. **Run ETL Pipeline**:
-   ```bash
-   python etl/main.py
-   ```
-
-3. **Verify Data**:
-   ```bash
-   docker exec -it ecommerce_dw psql -U bi_admin -d ecommerce_dw -c "SELECT * FROM vw_sales_summary LIMIT 10;"
-   ```
-
-4. **Create Dashboard**:
-   - Open Power BI Desktop
-   - Follow `docs/powerbi_guide.md`
-   - Save as `powerbi/ecommerce_bi.pbix`
-
-5. **Integrate with MERN**:
-   - Follow `docs/mern_integration.md`
-   - Test in your application
-
----
-
-## 📧 Support
-
-For issues or questions:
-1. Check logs: `logs/etl_pipeline.log`
-2. Review documentation in `docs/`
-3. Verify PostgreSQL: `docker logs ecommerce_dw`
-4. Test connections in Python console
-
----
-
-## 🎉 Conclusion
-
-This project demonstrates a professional-grade BI system suitable for academic presentation and real-world application. The modular design allows for easy extension and maintenance.
-
-**Good luck with your project defense! 🎓**
-
----
-
-**Version**: 1.0.0  
-**Date**: January 2026  
-**Academic Level**: 5th Year Engineering  
-**Technologies**: Python, MongoDB, PostgreSQL, Power BI, MERN
+- Incremental loads (only new or changed orders) instead of truncate-and-reload
+- Slowly changing dimensions (type 2) for product prices and customer regions
+- Schedule the pipeline with Airflow or a cron job
+- Use the payments collection to add a payment-method dimension

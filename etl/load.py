@@ -6,7 +6,7 @@ Loads transformed data into PostgreSQL Data Warehouse
 import pandas as pd
 from sqlalchemy import create_engine, text
 from typing import Dict
-from .config import Config, logger
+from .config import Config, logger, mask_uri
 
 
 class DataWarehouseLoader:
@@ -20,7 +20,7 @@ class DataWarehouseLoader:
     def connect(self):
         """Create connection to PostgreSQL"""
         try:
-            logger.info(f"Connecting to PostgreSQL: {self.config.PG_HOST}:{self.config.PG_PORT}")
+            logger.info(f"Connecting to PostgreSQL: {mask_uri(self.config.PG_CONNECTION_STRING)}")
             self.engine = create_engine(self.config.PG_CONNECTION_STRING)
             
             # Test connection
